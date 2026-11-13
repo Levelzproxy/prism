@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Prism &middot; Proxy</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%238b7cf6'/%3E%3Cpath d='M10 22 16 9l6 13z' fill='%230b0e17'/%3E%3C/svg%3E" />
+<style>
+  :root {
+    --bg: #070a12;
+    --panel: #101625;
+    --panel-2: #161e33;
+    --line: rgba(255, 255, 255, 0.08);
+    --text: #e8ecf8;
+    --muted: #8b96b4;
+    --accent: #8b7cf6;
+    --accent-2: #b39dff;
+    --green: #34d399;
+    --red: #f87171;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    overflow: hidden;
+  }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: -30%;
+    background:
+      radial-gradient(42% 42% at 22% 18%, rgba(139, 124, 246, 0.28), transparent 70%),
+      radial-gradient(38% 38% at 78% 12%, rgba(45, 212, 191, 0.18), transparent 70%),
+      radial-gradient(46% 46% at 60% 92%, rgba(168, 85, 247, 0.2), transparent 70%);
+    filter: blur(18px);
+    pointer-events: none;
+    z-index: 0;
+  }
+  .app { position: relative; z-index: 1; display: flex; flex-direction: column; height: 100%; }
+
+  /* ---------- top bar ---------- */
+  .topbar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px;
+    background: rgba(11, 15, 25, 0.72);
+    backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--line);
+    flex: 0 0 auto;
+  }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: .3px; padding-right: 6px; }
+  .brand .dot {
+    width: 22px; height: 22px; border-radius: 7px;
+    background: linear-gradient(140deg, var(--accent), #2dd4bf);
+    box-shadow: 0 0 18px rgba(139, 124, 246, .55);
+  }
+  .brand span { font-size: 15px; }
+  .brand small { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .12em; }
+
+  .iconbtn {
+    width: 34px; height: 34px; flex: 0 0 auto;
+    display: grid; place-items: center;
+    border: 1px solid var(--line); border-radius: 10px;
+    background: var(--panel); color: var(--text);
+    cursor: pointer; font-size: 14px; line-height: 1;
+    transition: background .15s, border-color .15s, transform .1s;
+  }
+  .iconbtn:hover { background: var(--panel-2); border-color: rgba(139,124,246,.5); }
+  .iconbtn:active { transform: scale(.95); }
+  .iconbtn[disabled] { opacity: .38; cursor: default; }
+  .iconbtn[disabled]:hover { background: var(--panel); border-color: var(--line); }
+
+  .omni { flex: 1 1 auto; display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .omni .field {
+    flex: 1 1 auto; display: flex; align-items: center; gap: 8px; min-width: 0;
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 11px; padding: 0 12px; height: 38px;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .omni .field:focus-within { border-color: rgba(139,124,246,.65); box-shadow: 0 0 0 3px rgba(139,124,246,.14); }
+  .omni .field .lock { color: var(--green); font-size: 12px; opacity: .9; }
+  .omni input {
+    flex: 1 1 auto; min-width: 0; background: none; border: 0; outline: 0;
+    color: var(--text); font: inherit; font-size: 14px;
+  }
+  .omni input::placeholder { color: #66708d; }
+
+  /* ---------- main ---------- */
+  main { position: relative; flex: 1 1 auto; min-height: 0; }
+  #frame {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    border: 0; background: #fff; display: none;
+  }
+  body.browsing #frame { display: block; }
+  body.browsing #homeView { display: none; }
+
+  /* ---------- home ---------- */
+  #homeView {
+    position: absolute; inset: 0; overflow: auto;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 7vh 20px 40px;
+  }
+  .hero { width: min(680px, 100%); text-align: center; }
+  .hero h1 {
+    margin: 0 0 6px; font-size: clamp(34px, 6vw, 52px); letter-spacing: -.03em;
+    background: linear-gradient(100deg, #fff 20%, var(--accent-2) 60%, #2dd4bf 95%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .hero p { margin: 0 0 26px; color: var(--muted); font-size: 14px; }
+  .hero form {
+    display: flex; gap: 8px; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 14px; padding: 8px;
+    box-shadow: 0 18px 50px -22px rgba(0,0,0,.9);
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .hero form:focus-within { border-color: rgba(139,124,246,.6); box-shadow: 0 0 0 3px rgba(139,124,246,.13); }
+  .hero input {
+    flex: 1 1 auto; min-width: 0; background: none; border: 0; outline: 0;
+    color: var(--text); font: inherit; font-size: 15px; padding: 0 10px;
+  }
+  .hero input::placeholder { color: #66708d; }
+  .btn {
+    border: 0; border-radius: 10px; cursor: pointer; font: inherit; font-weight: 600;
+    background: linear-gradient(140deg, var(--accent), #6d5ce7); color: #fff;
+    padding: 10px 18px; font-size: 14px;
+    box-shadow: 0 10px 24px -12px rgba(139,124,246,.9);
+    transition: filter .15s, transform .1s;
+  }
+  .btn:hover { filter: brightness(1.08); }
+  .btn:active { transform: scale(.97); }
+  .btn.ghost { background: var(--panel-2); color: var(--text); box-shadow: none; border: 1px solid var(--line); }
+  .btn.small { padding: 7px 13px; font-size: 12.5px; border-radius: 9px; }
+
+  .notice {
+    width: min(680px, 100%); margin-top: 22px; display: flex; align-items: center; gap: 12px;
+    background: rgba(248, 113, 113, .09); border: 1px solid rgba(248, 113, 113, .35);
+    color: #ffd9d9; border-radius: 12px; padding: 12px 14px; font-size: 13px;
+  }
+  .notice[hidden] { display: none; }
+  .notice b { color: #fff; font-weight: 600; }
+  .notice .btn { margin-left: auto; flex: 0 0 auto; }
+
+  .tiles { width: min(680px, 100%); margin-top: 34px; display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
+  .tile {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    padding: 14px 8px; border-radius: 13px; cursor: pointer;
+    background: rgba(22, 30, 51, .6); border: 1px solid var(--line);
+    color: var(--text); text-decoration: none; font-size: 12px;
+    transition: transform .12s, border-color .15s, background .15s;
+  }
+  .tile:hover { transform: translateY(-2px); border-color: rgba(139,124,246,.55); background: rgba(30, 40, 68, .8); }
+  .tile .ic {
+    width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center;
+    font-weight: 700; font-size: 14px; color: #0b0e17;
+    background: linear-gradient(140deg, var(--accent-2), #2dd4bf);
+  }
+  .status {
+    margin-top: 26px; font-size: 12px; color: var(--muted);
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .status .led { width: 7px; height: 7px; border-radius: 50%; background: #6b7391; box-shadow: 0 0 10px currentColor; }
+  .status.ok .led { background: var(--green); }
+  .status.err .led { background: var(--red); }
+  .status code { color: #aab4d0; font-size: 11.5px; }
+
+  /* ---------- settings drawer ---------- */
+  #settings {
+    position: fixed; z-index: 20; top: 60px; right: 14px; width: min(360px, calc(100vw - 28px));
+    background: rgba(16, 22, 37, .96); backdrop-filter: blur(16px);
+    border: 1px solid var(--line); border-radius: 16px; padding: 16px;
+    box-shadow: 0 30px 80px -30px #000;
+  }
+  #settings[hidden] { display: none; }
+  #settings h2 { margin: 0 0 2px; font-size: 14px; letter-spacing: .01em; }
+  #settings .sub { color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: .14em; margin: 16px 0 8px; }
+  #settings .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  #settings .url {
+    flex: 1 1 auto; min-width: 0; width: 100%;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 9px;
+    padding: 9px 11px; color: #c9d3ee; word-break: break-all;
+  }
+  #settings input.url:focus { outline: 0; border-color: rgba(139,124,246,.65); }
+  .engines { display: flex; flex-wrap: wrap; gap: 6px; }
+  .engine {
+    padding: 6px 12px; font-size: 12.5px; border-radius: 8px; cursor: pointer;
+    background: var(--panel-2); border: 1px solid var(--line); color: var(--muted);
+  }
+  .engine.active { background: rgba(139,124,246,.18); border-color: rgba(139,124,246,.6); color: #fff; }
+  #settings .hint { color: var(--muted); font-size: 11.5px; margin-top: 10px; line-height: 1.45; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand"><i class="dot"></i><span>Prism</span><small>proxy</small></div>
+
+    <button class="iconbtn" id="back" title="Back" disabled>&#8592;</button>
+    <button class="iconbtn" id="forward" title="Forward" disabled>&#8594;</button>
+    <button class="iconbtn" id="reload" title="Reload" disabled>&#10227;</button>
+    <button class="iconbtn" id="homeBtn" title="Home">&#8962;</button>
+
+    <form class="omni" id="omniForm">
+      <label class="field">
+        <span class="lock">&#128274;</span>
+        <input id="omni" autocomplete="off" spellcheck="false" placeholder="Search or enter address" />
+      </label>
+    </form>
+
+    <button class="iconbtn" id="fullscreen" title="Fullscreen">&#9974;</button>
+    <button class="iconbtn" id="settingsBtn" title="Settings">&#9881;</button>
+  </header>
+
+  <main>
+    <section id="homeView">
+      <div class="hero">
+        <h1>Prism</h1>
+        <p>A privacy browser that runs entirely in your tab.</p>
+        <form id="heroForm">
+          <input id="heroInput" autocomplete="off" spellcheck="false" placeholder="Search the web or paste a URL" />
+          <button class="btn" type="submit">Browse</button>
+        </form>
+      </div>
+
+      <div class="notice" id="notice" hidden>
+        <span><b>The Wisp server is unreachable.</b> <span id="noticeUrl"></span> &mdash; paste a working <code>wss://</code> URL in Settings to browse.</span>
+        <button class="btn small" id="noticeSettings" type="button">Settings</button>
+      </div>
+
+      <nav class="tiles" id="tiles"></nav>
+
+      <div class="status" id="status"><i class="led"></i><span id="statusText">Starting transport&hellip;</span></div>
+    </section>
+
+    <iframe id="frame" title="Proxy viewport" allow="clipboard-read; clipboard-write; fullscreen"></iframe>
+  </main>
+</div>
+
+<aside id="settings" hidden>
+  <div class="row">
+    <h2>Proxy settings</h2>
+    <button class="iconbtn" id="closeSettings" title="Close">&#10005;</button>
+  </div>
+
+  <div class="sub">Transport</div>
+  <div class="row">
+    <input class="url" id="wispInput" spellcheck="false" autocomplete="off" />
+    <button class="btn small" id="saveWisp">Save</button>
+  </div>
+  <div class="row" style="margin-top:10px">
+    <div class="status" id="connState"><i class="led"></i><span>Not tested</span></div>
+    <button class="btn small ghost" id="testBtn">Test</button>
+  </div>
+
+  <div class="sub">Search</div>
+  <div class="engines" id="engines"></div>
+
+  <div class="sub">Maintenance</div>
+  <button class="btn small ghost" id="clearBtn">Clear cache &amp; reload</button>
+  <div class="hint">All requests are proxied through the Wisp server above. Nothing is stored on a backend &mdash; this page is fully static.</div>
+</aside>
+
+<script src="uv/uv.bundle.js"></script>
+<script src="uv.config.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
